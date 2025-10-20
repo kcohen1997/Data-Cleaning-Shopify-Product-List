@@ -2,6 +2,8 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import pandas as pd
+import re
+from html import unescape
 
 # Set variant fields
 VARIANT_FIELDS = [
@@ -28,9 +30,36 @@ VARIANT_FIELDS = [
     "Variant Tax Code"
 ]
 
+# Function to clean HTML and special characters
+def clean_html(text):
+    if pd.isna(text):
+        return text
+    text = unescape(str(text))  # Convert HTML entities to characters
+    text = re.sub(r'<[^>]*>', '', text)  # Remove HTML tags
+    text = re.sub(r'[^\x00-\x7F]+', '', text)  # Remove non-ASCII characters like Â
+    return text.strip()
+
+# Function to remove leading single quote if value is decimal
+def remove_leading_quote_if_decimal(val):
+    if isinstance(val, str) and val.startswith("'"):
+        unquoted = val[1:]
+        try:
+            float(unquoted)  # If it's a valid float, return without leading quote
+            return unquoted
+        except ValueError:
+            return val  # Return original if not a float
+    return val
+
 # Clean up CSV file
 def process_csv(file_path):
     df = pd.read_csv(file_path)
+
+    # Clean "Body (HTML)" field if present
+    if "Body (HTML)" in df.columns:
+        df["Body (HTML)"] = df["Body (HTML)"].apply(clean_html)
+
+    # Remove leading single quotes from decimal values across all fields
+    df = df.applymap(remove_leading_quote_if_decimal)
 
     # Add missing required fields
     for field in VARIANT_FIELDS:
